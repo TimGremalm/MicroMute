@@ -63,7 +63,6 @@
 
 #include "xp.h"
 
-int ledPin = 13;
 int speakerPin = 11; // Can be either 3 or 11, two PWM outputs connected to Timer 2
 volatile uint16_t sample;
 byte lastSample;
@@ -94,7 +93,7 @@ ISR(TIMER1_COMPA_vect) {
                 // Ramp down to zero to reduce the click at the end of playback.
                 OCR2A = sounddata_length + lastSample - sample;
             } else {
-                OCR2B = sounddata_length + lastSample - sample;                
+                OCR2B = sounddata_length + lastSample - sample;
             }
         }
     }
@@ -102,7 +101,7 @@ ISR(TIMER1_COMPA_vect) {
         if(speakerPin==11){
             OCR2A = pgm_read_byte(&sounddata_data[sample]);
         } else {
-            OCR2B = pgm_read_byte(&sounddata_data[sample]);            
+            OCR2B = pgm_read_byte(&sounddata_data[sample]);
         }
     }
 
@@ -174,12 +173,37 @@ void startPlayback()
     sei();
 }
 
+const int inputPin = 5;
+unsigned long timeNow;
+unsigned long msToSample = 50;
+int lastCounterState=0;
+int measure() {
+	timeNow = millis();
+	unsigned long timeEnd = timeNow+msToSample;
+
+	int inputState = 0;
+	int counterState = 0;
+
+	while (timeNow <= timeEnd) {
+		timeNow = millis();
+		inputState = digitalRead(inputPin);
+
+		if (inputState != lastCounterState) {
+			counterState += 1;
+			lastCounterState = inputState;
+		}
+	}
+
+	float samplePerSecond = (float)msToSample / 1000;
+	float samplesPerSecond = (float)counterState / samplePerSecond;
+	int frequency = samplesPerSecond / 2;
+
+	return frequency;
+}
 
 void setup()
 {
-    pinMode(ledPin, OUTPUT);
-    digitalWrite(ledPin, HIGH);
-    pinMode(5, INPUT);
+    pinMode(inputPin, INPUT);
 
     Serial.begin(9600);
 
@@ -206,38 +230,40 @@ void loop() {
 		unsigned long msSinceLastState = time - lastStateChanged;
 		unsigned long msSinceLastLong0kHz = time - lastLong0kHz;
 
-        if (FreqCount.available()) {
-            unsigned long count = FreqCount.read();
-			//More than 1.5kHz tone?
-			if (count > 15) {
-				last2kHz = time;
-				state = true;
+		int count = measure();
+		//More than 1.0kHz tone?
+		if (count > 1000) {
+			last2kHz = time;
+			state = true;
+		} else {
+			last0kHz = time;
+			state = false;
+		}
+
+		//Apply filter, only change state after 100ms
+		if (stateLast != state && msSinceLastState > 100) {
+			stateLast = state;
+			lastStateChanged = time;
+		}
+		if (stateLast == false && msSinceLastState > 2000) {
+			lastLong0kHz = time;
+		}
+
+		//Write debug
+		if (true) {
+			if (stateLast == true) {
+				Serial.print("true  ");
 			} else {
-				last0kHz = time;
-				state = false;
+				Serial.print("false ");
 			}
+			Serial.print(count);
+			Serial.print(" ");
+			Serial.print(msSinceLastState);
+			Serial.print(" ");
+			Serial.println(msSinceLastPlayed);
+		}
 
-			//Apply filter, only change state after 100ms
-			if (stateLast != state && (time-lastStateChanged > 100)) {
-				stateLast = state;
-				lastStateChanged = time;
-				if (state == false && (time-lastStateChanged > 2000)) {
-					lastLong0kHz = time;
-				}
-			}
-
-			//Write debug
-			if (true) {
-				if (stateLast == true) {
-					Serial.print("True  ");
-				} else {
-					Serial.print("False ");
-				}
-				Serial.println(count);
-			}
-        }
-
-		if (msSinceLastPlayed > 9000 && msSinceLastLong0kHz > 9000 && state == true) {
+		if (msSinceLastPlayed > 4000 && msSinceLastLong0kHz < 300 && state == true) {
             Serial.println("Play");
 			lastPlayed = time;
 			startPlayback();
