@@ -2,9 +2,12 @@
 
 BOARD_TAG   = nano
 BOARD_SUB   = atmega328
-MONITOR_PORT = /dev/ttyUSB0
-include ../../../../Arduino-Makefile/Arduino.mk
+ARCHITECTURE = avr
+ARDUINO_LIBS = FreqCount
 
+MONITOR_PORT = /dev/ttyUSB0
+ARDUINO_DIR = ../Arduino
+include ../Arduino-Makefile/Arduino.mk
 #make
 #make upload
 #make monitor
