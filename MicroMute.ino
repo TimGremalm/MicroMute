@@ -209,6 +209,9 @@ void setup()
 
 	//Sample for 10ms
     FreqCount.begin(10);
+    Serial.println("Test playback on power-on");
+    startPlayback();
+    Serial.println(":");
 }
 
 unsigned long lastPlayed = 0;
